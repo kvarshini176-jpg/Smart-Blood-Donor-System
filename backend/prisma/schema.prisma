@@ -1,0 +1,165 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(uuid())
+  email        String        @unique
+  passwordHash String
+  role         String        // DONOR, HOSPITAL, ADMIN
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  donorProfile    DonorProfile?
+  hospitalProfile HospitalProfile?
+  notifications   Notification[]
+  auditLogs       AuditLog[]
+  adminReviews    HospitalVerification[] @relation("AdminVerifier")
+}
+
+model DonorProfile {
+  id                 String          @id @default(uuid())
+  userId             String          @unique
+  user               User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName           String
+  bloodGroup         String          // A+, A-, B+, B-, AB+, AB-, O+, O-
+  phone              String
+  gender             String?
+  dateOfBirth        DateTime?
+  age                Int
+  state              String
+  city               String
+  locality           String
+  address            String
+  latitude           Float?
+  longitude          Float?
+  lastDonationDate   DateTime?
+  isAvailable        Boolean         @default(true)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  responses          DonorResponse[]
+  donations          Donation[]
+}
+
+model HospitalProfile {
+  id                 String          @id @default(uuid())
+  userId             String          @unique
+  user               User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hospitalName       String
+  regNumber          String
+  contactPerson      String
+  contactPhone       String
+  email              String
+  address            String
+  state              String
+  city               String
+  locality           String
+  latitude           Float?
+  longitude          Float?
+  verificationStatus String          @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  bloodRequests      BloodRequest[]
+  donations          Donation[]
+  verifications      HospitalVerification[]
+}
+
+model BloodRequest {
+  id                 String          @id @default(uuid())
+  hospitalId         String
+  hospital           HospitalProfile @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  patientNameOrId    String
+  patientAge         Int
+  bloodGroup         String          // A+, A-, B+, B-, AB+, AB-, O+, O-
+  unitsRequired      Int
+  unitsFulfilled     Int             @default(0)
+  urgency            String          @default("NORMAL") // NORMAL, HIGH, CRITICAL
+  requiredDate       DateTime
+  notes              String?
+  status             String          @default("OPEN") // OPEN, RESPONSES_RECEIVED, IN_PROGRESS, FULFILLED, CANCELLED, EXPIRED
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  responses          DonorResponse[]
+  donations          Donation[]
+}
+
+model DonorResponse {
+  id                 String          @id @default(uuid())
+  requestId          String
+  request            BloodRequest    @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  donorId            String
+  donor              DonorProfile    @relation(fields: [donorId], references: [id], onDelete: Cascade)
+  status             String          @default("INTERESTED") // INTERESTED, CONTACTED, ACCEPTED, SCHEDULED, COMPLETED, DECLINED, WITHDRAWN, DEFERRED
+  notes              String?
+  scheduledAt        DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  donation           Donation?
+
+  @@unique([requestId, donorId])
+}
+
+model Donation {
+  id                 String          @id @default(uuid())
+  requestId          String
+  request            BloodRequest    @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  donorId            String
+  donor              DonorProfile    @relation(fields: [donorId], references: [id], onDelete: Cascade)
+  hospitalId         String
+  hospital           HospitalProfile @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  donorResponseId    String          @unique
+  donorResponse      DonorResponse   @relation(fields: [donorResponseId], references: [id], onDelete: Cascade)
+  unitsDonated       Int             @default(1)
+  donationDate       DateTime        @default(now())
+  status             String          @default("CONFIRMED") // CONFIRMED, CANCELLED
+  remarks            String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+}
+
+model Notification {
+  id                 String          @id @default(uuid())
+  userId             String
+  user               User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title              String
+  message            String
+  type               String          // REQUEST_CREATED, DONOR_MATCH, INTEREST_EXPRESSED, DONOR_ACCEPTED, DONOR_DECLINED, APPOINTMENT_SCHEDULED, DONATION_COMPLETED, STATUS_CHANGE, VERIFICATION_UPDATE
+  relatedEntityId    String?
+  isRead             Boolean         @default(false)
+  createdAt          DateTime        @default(now())
+}
+
+model HospitalVerification {
+  id                 String          @id @default(uuid())
+  hospitalId         String
+  hospital           HospitalProfile @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  reviewedByAdminId  String?
+  reviewedBy         User?           @relation("AdminVerifier", fields: [reviewedByAdminId], references: [id], onDelete: SetNull)
+  status             String          @default("PENDING") // PENDING, APPROVED, REJECTED
+  reviewNotes        String?
+  reviewedAt         DateTime?
+  createdAt          DateTime        @default(now())
+}
+
+model AuditLog {
+  id                 String          @id @default(uuid())
+  userId             String?
+  user               User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action             String
+  entityType         String
+  entityId           String
+  details            String?
+  ipAddress          String?
+  createdAt          DateTime        @default(now())
+}

@@ -1,0 +1,15 @@
+node_modules/
+.env
+.env.*
+!.env.example
+venv/
+.venv/
+__pycache__/
+.pytest_cache/
+dist/
+build/
+
+# Ignore local SQLite database files
+backend/data/*.sqlite
+backend/data/*.sqlite-shm
+backend/data/*.sqlite-wal
